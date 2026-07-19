@@ -1,0 +1,6 @@
+{
+  "name": "지속가능 사업 분석 및 피드백 프로그램",
+  "description": "환경(E), 사회(S), 지배구조(G) 등의 기준을 정하여 지속가능성이 높은 동종 업계 우수 기업의 데이터와 사용자의 사업 데이터를 비교·분석하고, AI를 통해 보완할 부분과 개선 방향에 대한 맞춤형 피드백을 제공하는 프로그램입니다.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
