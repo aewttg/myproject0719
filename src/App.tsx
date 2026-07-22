@@ -31,6 +31,7 @@ import { motion, AnimatePresence } from 'motion/react';
 // Import local types and subcomponents
 import { IndustryBenchmark, AnalysisResult } from './types';
 import { DEFAULT_INDUSTRIES } from './data/industryPresets';
+import { runClientSideAnalysis } from './utils/analysisEngine';
 import BenchmarkRegistry from './components/BenchmarkRegistry';
 import ComparativeCharts from './components/ComparativeCharts';
 import AIFeedbackPanel from './components/AIFeedbackPanel';
@@ -147,13 +148,57 @@ export default function App() {
     setResult(null);
 
     try {
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          industryId: selectedIndustryId,
+      let isSuccess = false;
+      let analysisData = null;
+
+      try {
+        const response = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            industryId: selectedIndustryId,
+            companyName,
+            revenue: Number(revenue),
+            energyUsage: Number(energyUsage) || 0,
+            renewableRate,
+            ghgEmissions: Number(ghgEmissions) || 0,
+            wasteAmount: Number(wasteAmount) || 0,
+            recyclingRate,
+            hasTarget,
+            hasDisclosure,
+            disclosureScore,
+            socialScore,
+            targetCompany: targetCompany.trim() || undefined
+          }),
+        });
+
+        if (response.ok) {
+          const resJson = await response.json();
+          if (resJson.status === 'success') {
+            isSuccess = true;
+            analysisData = resJson.data;
+          } else if (response.status === 400 || (resJson.message && resJson.message.includes('지속가능성 정보'))) {
+            throw new Error(resJson.message);
+          }
+        } else {
+          const errJson = await response.json().catch(() => null);
+          if (response.status === 400 && errJson?.message) {
+            throw new Error(errJson.message);
+          }
+        }
+      } catch (apiErr: any) {
+        if (apiErr.message && (apiErr.message.includes('지속가능성 정보') || apiErr.message.includes('확인할 수 없습니다') || apiErr.message.includes('입력해 주세요'))) {
+          throw apiErr;
+        }
+        console.warn('Backend API call fallback activated for Vercel/External deployment.', apiErr);
+      }
+
+      if (!isSuccess || !analysisData) {
+        const curIndustry = selectedIndustry || DEFAULT_INDUSTRIES[0];
+        analysisData = runClientSideAnalysis({
+          selectedIndustry: curIndustry,
           companyName,
           revenue: Number(revenue),
           energyUsage: Number(energyUsage) || 0,
@@ -166,31 +211,14 @@ export default function App() {
           disclosureScore,
           socialScore,
           targetCompany: targetCompany.trim() || undefined
-        }),
-      });
-
-      if (!response.ok) {
-        let errMsg = '서버 분석 요청 중 문제가 발생했습니다.';
-        try {
-          const errJson = await response.json();
-          if (errJson && errJson.message) {
-            errMsg = errJson.message;
-          }
-        } catch (e) {
-          // ignore
-        }
-        throw new Error(errMsg);
+        });
       }
 
-      const resJson = await response.json();
-      if (resJson.status === 'success') {
-        setResult(resJson.data);
-        setTimeout(() => {
-          document.getElementById('analysis-result-title')?.scrollIntoView({ behavior: 'smooth' });
-        }, 150);
-      } else {
-        throw new Error(resJson.message || '분석에 실패했습니다.');
-      }
+      setResult(analysisData);
+      setTimeout(() => {
+        document.getElementById('analysis-result-title')?.scrollIntoView({ behavior: 'smooth' });
+      }, 150);
+
     } catch (err: any) {
       setError(err.message || '분석 중 오류가 발생했습니다. 다시 시도해 주세요.');
     } finally {
